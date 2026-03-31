@@ -71,11 +71,12 @@ arc_app = typer.Typer(name="arc", help="Season arc commands")
 def arc_generate(
     season: int = typer.Option(1, "--season", help="Season number"),
     episodes: int = typer.Option(8, "--episodes", help="Number of episodes"),
-    provider: str = typer.Option("openai", "--provider", help="LLM provider"),
+    provider: str = typer.Option("openrouter", "--provider", help="LLM provider (openai, anthropic, openrouter)"),
+    model: str = typer.Option(None, "--model", help="Model name (optional)"),
 ):
     """Generate season arc."""
     from seriesforge.cli.arc import generate_arc_cli
-    generate_arc_cli(season=season, episodes=episodes, provider=provider)
+    generate_arc_cli(season=season, episodes=episodes, provider=provider, model=model)
 
 
 app.add_typer(arc_app, name="arc")
@@ -89,11 +90,12 @@ episode_app = typer.Typer(name="episode", help="Episode commands")
 def episode_outline(
     episode: int = typer.Option(1, "--episode", help="Episode number"),
     season: int = typer.Option(1, "--season", help="Season number"),
-    provider: str = typer.Option("openai", "--provider", help="LLM provider"),
+    provider: str = typer.Option("openrouter", "--provider", help="LLM provider"),
+    model: str = typer.Option(None, "--model", help="Model name (optional)"),
 ):
     """Generate episode outline."""
     from seriesforge.cli.episode import outline_episode_cli
-    outline_episode_cli(episode=episode, season=season, provider=provider)
+    outline_episode_cli(episode=episode, season=season, provider=provider, model=model)
 
 
 app.add_typer(episode_app, name="episode")
@@ -107,11 +109,23 @@ script_app = typer.Typer(name="script", help="Script writing commands")
 def script_write(
     episode: int = typer.Option(1, "--episode", help="Episode number"),
     season: int = typer.Option(1, "--season", help="Season number"),
-    provider: str = typer.Option("openai", "--provider", help="LLM provider"),
+    max_attempts: int = typer.Option(3, "--max-attempts", help="Maximum retry attempts"),
+    threshold: float = typer.Option(6.0, "--threshold", help="Score threshold to pass"),
+    no_adversarial: bool = typer.Option(False, "--no-adversarial", help="Skip adversarial editing"),
+    provider: str = typer.Option("openrouter", "--provider", help="LLM provider"),
+    model: str = typer.Option(None, "--model", help="Model name (optional)"),
 ):
-    """Write episode script."""
-    from seriesforge.cli.script import write_script_cli
-    write_script_cli(episode=episode, season=season, provider=provider)
+    """Write episode script with evaluation retry loop."""
+    from seriesforge.cli.script_write import write_script_cli
+    write_script_cli(
+        episode=episode,
+        season=season,
+        max_attempts=max_attempts,
+        score_threshold=threshold,
+        no_adversarial=no_adversarial,
+        provider=provider,
+        model=model,
+    )
 
 
 @script_app.command("revise")

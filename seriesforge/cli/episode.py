@@ -58,8 +58,9 @@ async def generate_outline_llm(
     bible_path: Path,
     arc_path: Path,
     episode: int,
-    provider_name: str = "openai",
+    provider_name: str = "openrouter",
     api_key: str = "",
+    model: str = None,
 ) -> EpisodeOutline:
     """Generate episode outline using LLM."""
     # Load bible
@@ -72,6 +73,15 @@ async def generate_outline_llm(
         {"title": f"Episode {episode}", "logline": "", "beats": []},
     )
     
+    # Set default model
+    if model is None:
+        if provider_name == "openrouter":
+            model = "openai/gpt-4o"
+        elif provider_name == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
     prompt = OUTLINE_PROMPT.format(
         bible=bible_content[:6000],
         arc=json.dumps(arc_data, indent=2)[:4000],
@@ -80,7 +90,7 @@ async def generate_outline_llm(
         ep_logline=ep_info.get("logline", ""),
     )
     
-    provider = create_provider(provider_name, {"api_key": api_key})
+    provider = create_provider(provider_name, {"api_key": api_key, "model": model})
     
     messages = [
         ChatMessage(role="system", content="You are a JSON API. Output valid JSON only."),
@@ -137,9 +147,12 @@ def save_outline(outline: EpisodeOutline, episode_path: Path):
 def outline_episode_cli(
     episode: int = 1,
     season: int = 1,
-    provider: str = "openai",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """CLI entry point for episode outline."""
+    from seriesforge.core.config import get_api_key
+    
     project_path = Path.cwd()
     
     try:
@@ -153,20 +166,19 @@ def outline_episode_cli(
         typer.echo("Error: Show bible not found. Run 'seriesforge bible generate' first.")
         raise typer.Exit(code=1)
     
-    arc_path = project_path / "seasons" / f"season_{season:02d}" / "arc.json"
+    arc_path = project_path / f"season_{season}" / "arc.json"
     if not arc_path.exists():
         typer.echo(f"Error: Season {season} arc not found. Run 'seriesforge arc generate' first.")
         raise typer.Exit(code=1)
     
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_key = get_api_key(config, provider)
     if not api_key:
-        typer.echo("Error: OPENAI_API_KEY not set.")
+        typer.echo(f"Error: {provider.upper()}_API_KEY not set.")
         raise typer.Exit(code=1)
     
     episode_path = (
         project_path
-        / "seasons"
-        / f"season_{season:02d}"
+        / f"season_{season}"
         / "episodes"
         / f"ep_{episode:02d}"
     )
@@ -176,7 +188,7 @@ def outline_episode_cli(
     
     try:
         outline = asyncio.run(
-            generate_outline_llm(bible_path, arc_path, episode, provider, api_key)
+            generate_outline_llm(bible_path, arc_path, episode, provider, api_key, model)
         )
     except Exception as e:
         typer.echo(f"Error generating outline: {e}")

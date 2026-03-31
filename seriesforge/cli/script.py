@@ -1,12 +1,102 @@
-"""Script revision with feedback."""
+"""Script generation and revision."""
 
 import asyncio
+import json
 import os
 from pathlib import Path
+from typing import Optional
 
 import typer
 
 from seriesforge.providers.llm import ChatMessage, create_provider
+
+
+SCRIPT_GENERATION_PROMPT = """
+You are an expert TV screenwriter. Write a complete episode script in Fountain format.
+
+CRITICAL: Use ONLY these characters: {characters}
+CRITICAL: Use ONLY these locations: {locations}
+CRITICAL: Tone is: {tone}
+
+EPISODE OUTLINE:
+{outline}
+
+Write in proper Fountain screenplay format.
+
+Output ONLY the Fountain script. No explanations.
+"""
+
+
+async def generate_script_llm(
+    episode: int,
+    season: int,
+    bible_path: Path,
+    outline_path: Path,
+    provider_name: str = "openrouter",
+    api_key: str = "",
+    model: str = None,
+) -> str:
+    """Generate episode script from outline using LLM."""
+    
+    # Load bible
+    bible_content = bible_path.read_text() if bible_path.exists() else ""
+    
+    # Load outline
+    outline_content = outline_path.read_text() if outline_path.exists() else ""
+    
+    # Extract characters with descriptions
+    import re
+    
+    # Get character section
+    char_section = re.search(r'## Characters\s+(.+?)(?:## |\Z)', bible_content, re.DOTALL)
+    char_desc = ""
+    if char_section:
+        char_desc = char_section.group(1)[:1500]  # First 1500 chars of character section
+    
+    # Extract location names
+    loc_section = re.search(r'## Locations\s+(.+?)(?:## |\Z)', bible_content, re.DOTALL)
+    locations = ""
+    if loc_section:
+        loc_matches = re.findall(r'### (.+?)\n', loc_section.group(1))
+        locations = ", ".join(loc_matches[:5])
+    
+    # Extract tone
+    tone_match = re.search(r'\*\*Tone\*\*: (.+?)\n', bible_content)
+    tone = tone_match.group(1) if tone_match else "comedy"
+    
+    # Set default model
+    if model is None:
+        if provider_name == "openrouter":
+            model = "anthropic/claude-3.5-sonnet"
+        elif provider_name == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
+    prompt = f"""Write a TV episode script in Fountain format.
+
+CHARACTERS (use ONLY these):
+{char_desc}
+
+LOCATIONS (use ONLY these): {locations}
+
+TONE: {tone}
+
+OUTLINE:
+{outline_content[:4000]}
+
+Output ONLY the Fountain script."""
+    
+    provider = create_provider(provider_name, {"api_key": api_key, "model": model})
+    
+    messages = [
+        ChatMessage(role="system", content=f"You are a TV screenwriter. Use ONLY the characters provided: Robo, Mark, Jenna. Output Fountain format only."),
+        ChatMessage(role="user", content=prompt),
+    ]
+    
+    response = await provider.chat(messages, temperature=0.7, max_tokens=8000)
+    
+    return response.content
 
 
 REVISE_PROMPT = """

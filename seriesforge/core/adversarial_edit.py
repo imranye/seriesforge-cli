@@ -1,4 +1,5 @@
-import json\n"""Adversarial editing - cut filler and tighten scripts."""
+import json
+"""Adversarial editing - cut filler and tighten scripts."""
 
 import re
 from pathlib import Path

@@ -9,7 +9,6 @@ from seriesforge.core.config import load_config
 from seriesforge.core.evaluation import evaluate_episode, save_evaluation_report
 from seriesforge.core.adversarial_edit import generate_cut_brief, apply_cuts
 from seriesforge.core.state import PipelineState
-from seriesforge.core.manifests import load_episode_manifest
 
 
 async def write_episode_with_retry(

@@ -81,56 +81,61 @@ async def llm_judge_evaluation(
     script_text: str,
     bible_path: Path,
     outline_path: Path,
-    provider_name: str = "anthropic",
+    provider_name: str = "openrouter",
     api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """LLM-based episode evaluation."""
+    """LLM-based episode evaluation - optimized for speed."""
     
-    # Load context
+    # Load context (minimal)
     bible_content = bible_path.read_text() if bible_path.exists() else ""
     outline_content = outline_path.read_text() if outline_path.exists() else ""
     
     from seriesforge.providers.llm import ChatMessage, create_provider
     
-    provider = create_provider(provider_name, {"api_key": api_key or ""})
+    # Use faster model for evaluation
+    model = None
+    if provider_name == "openrouter":
+        model = "anthropic/claude-3.5-haiku"  # Faster, cheaper
+    elif provider_name == "anthropic":
+        model = "claude-3-5-sonnet-20241022"
     
-    prompt = f"""You are an expert TV script evaluator. Score this episode script on multiple dimensions.
+    provider = create_provider(provider_name, {"api_key": api_key or "", "model": model})
+    
+    # Extract just character names for evaluation
+    import re
+    char_names = re.findall(r'### (.+?)\n', bible_content[:2000])
+    
+    prompt = f"""Evaluate this TV script. Be concise.
 
-SHOW BIBLE:
-{bible_content[:10000]}
+CHARACTERS: {', '.join(char_names[:5])}
 
-EPISODE OUTLINE:
-{outline_content[:5000]}
+SCRIPT (first 2000 chars):
+{script_text[:2000]}
 
-SCRIPT TO EVALUATE:
-{script_text[:40000]}
+Score 0-10:
+1. voice_adherence: Character voices distinct?
+2. pacing: Good rhythm and momentum?
+3. prose_quality: Crisp action, natural dialogue?
 
-Evaluate on these criteria (0-10 scale each):
-1. voice_adherence: Does the dialogue match character voices from the bible?
-2. character_distinctiveness: Can you tell who's speaking without dialogue tags?
-3. pacing: Does the episode have good rhythm, act breaks, momentum?
-4. beat_coverage: Are all outline beats hit? Any missing or extra?
-5. prose_quality: Is the action lines crisp? Dialogue natural?
-
-Output valid JSON only:
+Output JSON only:
 {{
-  "voice_adherence": 7.5,
-  "character_distinctiveness": 8.0,
-  "pacing": 6.5,
-  "beat_coverage": 9.0,
+  "voice_adherence": 7.0,
+  "character_distinctiveness": 7.0,
+  "pacing": 7.0,
+  "beat_coverage": 7.0,
   "prose_quality": 7.0,
-  "overall": 7.6,
-  "issues": ["specific issue 1", "specific issue 2"],
-  "suggestions": ["actionable fix 1", "actionable fix 2"]
+  "overall": 7.0,
+  "issues": ["issue1", "issue2"],
+  "suggestions": ["fix1", "fix2"]
 }}
 """
     
     messages = [
-        ChatMessage(role="system", content="You are a JSON API. Output valid JSON only."),
+        ChatMessage(role="system", content="JSON API only."),
         ChatMessage(role="user", content=prompt),
     ]
     
-    response = await provider.chat(messages, temperature=0.3)
+    response = await provider.chat(messages, temperature=0.3, max_tokens=500)
     
     # Parse JSON
     content = response.content.strip()

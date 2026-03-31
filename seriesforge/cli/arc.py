@@ -52,8 +52,9 @@ async def generate_arc_llm(
     bible_path: Path,
     season: int = 1,
     episode_count: int = 8,
-    provider_name: str = "openai",
+    provider_name: str = "openrouter",
     api_key: str = "",
+    model: str = None,
 ) -> dict:
     """Generate season arc using LLM."""
     # Load bible
@@ -63,13 +64,22 @@ async def generate_arc_llm(
     else:
         raise FileNotFoundError(f"Bible not found at {bible_path}")
     
+    # Set default model
+    if model is None:
+        if provider_name == "openrouter":
+            model = "openai/gpt-4o"
+        elif provider_name == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
     prompt = ARC_PROMPT.format(
         bible=bible_content[:8000],  # Limit context
         season=season,
         episode_count=episode_count,
     )
     
-    provider = create_provider(provider_name, {"api_key": api_key})
+    provider = create_provider(provider_name, {"api_key": api_key, "model": model})
     
     messages = [
         ChatMessage(role="system", content="You are a JSON API. Output valid JSON only, no markdown formatting."),
@@ -140,9 +150,12 @@ def save_arc(arc_data: dict, season_path: Path):
 def generate_arc_cli(
     season: int = 1,
     episodes: int = 8,
-    provider: str = "openai",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """CLI entry point for arc generation."""
+    from seriesforge.core.config import load_config, get_api_key
+    
     project_path = Path.cwd()
     
     try:
@@ -152,24 +165,19 @@ def generate_arc_cli(
         raise typer.Exit(code=1)
     
     bible_path = project_path / "bible" / "show_bible.md"
-    if not bible_path.exists():
-        typer.echo("Error: Show bible not found. Run 'seriesforge bible generate' first.")
-        raise typer.Exit(code=1)
+    api_key = get_api_key(config, provider)
+    season_path = project_path / f"season_{season}"
+    season_path.mkdir(parents=True, exist_ok=True)
     
-    api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        typer.echo("Error: OPENAI_API_KEY not set.")
-        typer.echo("Set the environment variable and try again.")
+        typer.echo(f"Warning: {provider.upper()}_API_KEY not set.")
         raise typer.Exit(code=1)
-    
-    season_path = project_path / "seasons" / f"season_{season:02d}"
-    season_path.mkdir(exist_ok=True)
     
     typer.echo(f"Generating season {season} arc...")
     
     try:
         arc_data = asyncio.run(
-            generate_arc_llm(bible_path, season, episodes, provider, api_key)
+            generate_arc_llm(bible_path, season, episodes, provider, api_key, model)
         )
     except Exception as e:
         typer.echo(f"Error generating arc: {e}")
