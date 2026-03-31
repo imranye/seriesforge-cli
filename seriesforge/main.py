@@ -337,3 +337,20 @@ app.add_typer(pipeline_app, name="pipeline")
 
 if __name__ == "__main__":
     app()
+\n# Revision commands
+revision_app = typer.Typer(name="revision", help="Revision loop commands")
+
+
+@revision_app.command("run")
+def revision_run(
+    episode: int = typer.Option(1, "--episode", help="Episode number"),
+    season: int = typer.Option(1, "--season", help="Season number"),
+    max_rounds: int = typer.Option(6, "--max-rounds", help="Maximum revision rounds"),
+    provider: str = typer.Option("anthropic", "--provider", help="LLM provider"),
+):
+    """Run revision loop with Opus dual-persona review."""
+    from seriesforge.cli.revision import revision_cli
+    revision_cli(episode=episode, season=season, max_rounds=max_rounds, provider=provider)
+
+
+app.add_typer(revision_app, name="revision")
