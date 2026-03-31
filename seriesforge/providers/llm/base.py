@@ -145,8 +145,68 @@ class AnthropicProvider(LLMProvider):
         return "anthropic"
 
 
+class OpenRouterProvider(LLMProvider):
+    """OpenRouter provider - access to 100+ models through one API key."""
+    
+    def __init__(self, api_key: str, model: str = "anthropic/claude-3.5-sonnet"):
+        self.api_key = api_key
+        self.model = model
+        self._client = None
+    
+    @property
+    def client(self):
+        """Lazy load OpenRouter client (OpenAI-compatible)."""
+        if self._client is None:
+            from openai import AsyncOpenAI
+            self._client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        return self._client
+    
+    async def chat(
+        self,
+        messages: List[ChatMessage],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ) -> ChatResponse:
+        """Send chat to OpenRouter."""
+        formatted_messages = [
+            {"role": m.role, "content": m.content} for m in messages
+        ]
+        
+        kwargs = {
+            "model": self.model,
+            "messages": formatted_messages,
+            "temperature": temperature,
+        }
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        
+        response = await self.client.chat.completions.create(**kwargs)
+        
+        return ChatResponse(
+            content=response.choices[0].message.content,
+            model=self.model,
+            usage={
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            } if response.usage else None,
+        )
+    
+    def get_name(self) -> str:
+        return "openrouter"
+
+
 def create_provider(name: str, config: Dict[str, Any]) -> LLMProvider:
-    """Factory function to create LLM provider."""
+    """Factory function to create LLM provider.
+    
+    Supported providers:
+    - openai: GPT-4o, o1, etc.
+    - anthropic: Claude 3.5 Sonnet, Opus
+    - openrouter: 100+ models (anthropic/claude-3.5-sonnet, openai/gpt-4o, etc.)
+    """
     if name == "openai":
         return OpenAIProvider(
             api_key=config.get("api_key", ""),
@@ -156,6 +216,11 @@ def create_provider(name: str, config: Dict[str, Any]) -> LLMProvider:
         return AnthropicProvider(
             api_key=config.get("api_key", ""),
             model=config.get("model", "claude-3-5-sonnet-20241022"),
+        )
+    elif name == "openrouter":
+        return OpenRouterProvider(
+            api_key=config.get("api_key", ""),
+            model=config.get("model", "anthropic/claude-3.5-sonnet"),
         )
     else:
         raise ValueError(f"Unknown LLM provider: {name}")

@@ -51,16 +51,49 @@ class ProjectConfig(BaseModel):
         arbitrary_types_allowed = True
 
 
-def load_config(project_path: Path) -> ProjectConfig:
-    """Load configuration from seriesforge.yaml."""
+def load_config(project_path: Path) -> dict:
+    """Load configuration from seriesforge.yaml and environment.
+    
+    Returns a dict with config + API keys from environment.
+    """
+    import os
+    
     config_file = project_path / "seriesforge.yaml"
-    if not config_file.exists():
-        raise FileNotFoundError(f"Config file not found: {config_file}")
+    data = {}
     
-    with open(config_file) as f:
-        data = yaml.safe_load(f)
+    if config_file.exists():
+        with open(config_file) as f:
+            data = yaml.safe_load(f) or {}
     
-    return ProjectConfig(**data)
+    # Add API keys from environment
+    data["api_keys"] = data.get("api_keys", {})
+    
+    if "anthropic_api_key" not in data["api_keys"]:
+        data["api_keys"]["anthropic_api_key"] = os.environ.get("ANTHROPIC_API_KEY", "")
+    
+    if "openai_api_key" not in data["api_keys"]:
+        data["api_keys"]["openai_api_key"] = os.environ.get("OPENAI_API_KEY", "")
+    
+    if "openrouter_api_key" not in data["api_keys"]:
+        data["api_keys"]["openrouter_api_key"] = os.environ.get("OPENROUTER_API_KEY", "")
+    
+    return data
+
+
+def get_api_key(config: dict, provider: str) -> str:
+    """Get API key for a provider from config or environment."""
+    import os
+    
+    api_keys = config.get("api_keys", {})
+    
+    if provider == "anthropic":
+        return api_keys.get("anthropic_api_key", os.environ.get("ANTHROPIC_API_KEY", ""))
+    elif provider == "openai":
+        return api_keys.get("openai_api_key", os.environ.get("OPENAI_API_KEY", ""))
+    elif provider == "openrouter":
+        return api_keys.get("openrouter_api_key", os.environ.get("OPENROUTER_API_KEY", ""))
+    
+    return ""
 
 
 def save_config(config: ProjectConfig, project_path: Path):

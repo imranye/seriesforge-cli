@@ -52,11 +52,12 @@ def bible_generate(
     concept: str = typer.Option(..., "--concept", help="Show concept description"),
     genre: str = typer.Option("drama", "--genre", help="Genre"),
     tone: str = typer.Option("cinematic", "--tone", help="Tone"),
-    provider: str = typer.Option("openai", "--provider", help="LLM provider"),
+    provider: str = typer.Option("openrouter", "--provider", help="LLM provider (openai, anthropic, openrouter)"),
+    model: str = typer.Option(None, "--model", help="Model name (optional)"),
 ):
     """Generate a show bible from a concept."""
     from seriesforge.cli.bible import generate_bible_cli
-    generate_bible_cli(concept=concept, genre=genre, tone=tone, provider=provider)
+    generate_bible_cli(concept=concept, genre=genre, tone=tone, provider=provider, model=model)
 
 
 app.add_typer(bible_app, name="bible")
@@ -337,7 +338,9 @@ app.add_typer(pipeline_app, name="pipeline")
 
 if __name__ == "__main__":
     app()
-\n# Revision commands
+
+
+# Revision commands
 revision_app = typer.Typer(name="revision", help="Revision loop commands")
 
 
@@ -346,11 +349,12 @@ def revision_run(
     episode: int = typer.Option(1, "--episode", help="Episode number"),
     season: int = typer.Option(1, "--season", help="Season number"),
     max_rounds: int = typer.Option(6, "--max-rounds", help="Maximum revision rounds"),
-    provider: str = typer.Option("anthropic", "--provider", help="LLM provider"),
+    provider: str = typer.Option("openrouter", "--provider", help="LLM provider (openai, anthropic, openrouter)"),
+    model: str = typer.Option(None, "--model", help="Model name (optional, default: anthropic/claude-3.5-opus)"),
 ):
     """Run revision loop with Opus dual-persona review."""
     from seriesforge.cli.revision import revision_cli
-    revision_cli(episode=episode, season=season, max_rounds=max_rounds, provider=provider)
+    revision_cli(episode=episode, season=season, max_rounds=max_rounds, provider=provider, model=model)
 
 
 app.add_typer(revision_app, name="revision")

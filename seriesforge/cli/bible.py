@@ -56,13 +56,23 @@ async def generate_bible_llm(
     concept: str,
     genre: str,
     tone: str,
-    provider_name: str = "openai",
+    provider_name: str = "openrouter",
     api_key: str = "",
+    model: str = None,
 ) -> ShowBible:
     """Generate show bible using LLM."""
     prompt = BIBLE_PROMPT.format(concept=concept, genre=genre, tone=tone)
     
-    provider = create_provider(provider_name, {"api_key": api_key})
+    # Set default model based on provider
+    if model is None:
+        if provider_name == "openrouter":
+            model = "openai/gpt-4o"
+        elif provider_name == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
+    provider = create_provider(provider_name, {"api_key": api_key, "model": model})
     
     messages = [
         ChatMessage(role="system", content="You are a JSON API. Output valid JSON only, no markdown formatting."),
@@ -207,10 +217,11 @@ def generate_bible_cli(
     concept: str,
     genre: str = "drama",
     tone: str = "cinematic",
-    provider: str = "openai",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """CLI entry point for bible generation."""
-    from seriesforge.core.config import load_config
+    from seriesforge.core.config import load_config, get_api_key
     
     project_path = Path.cwd()
     
@@ -220,31 +231,20 @@ def generate_bible_cli(
         typer.echo("Error: Not in a SeriesForge project. Run 'seriesforge project init' first.")
         raise typer.Exit(code=1)
     
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key and provider == "openai":
-        typer.echo("Warning: OPENAI_API_KEY not set. Generating placeholder bible.")
-        bible = ShowBible(
-            title=" ".join(concept.split()[:3]),
-            concept=concept,
-            genre=genre,
-            tone=tone,
-            characters=[],
-            locations=[],
-            themes=[],
-        )
-        bible_path = project_path / "bible" / "show_bible.md"
-        bible_path.write_text(format_bible_markdown(bible))
-        typer.echo(f"✓ Placeholder bible generated: {bible_path}")
-        typer.echo("Set OPENAI_API_KEY environment variable for full LLM generation")
-        return
+    api_key = get_api_key(config, provider)
+    if not api_key:
+        typer.echo(f"Warning: {provider.upper()}_API_KEY not set.")
+        typer.echo("Set environment variable: export OPENROUTER_API_KEY=sk-or-...")
+        raise typer.Exit(code=1)
     
     try:
-        bible = asyncio.run(generate_bible_llm(concept, genre, tone, provider, api_key))
+        bible = asyncio.run(generate_bible_llm(concept, genre, tone, provider, api_key, model))
     except Exception as e:
         typer.echo(f"Error generating bible with LLM: {e}")
         raise typer.Exit(code=1)
     
     bible_md_path = project_path / "bible" / "show_bible.md"
+    bible_md_path.parent.mkdir(parents=True, exist_ok=True)
     bible_md_path.write_text(format_bible_markdown(bible))
     
     bible_yaml_path = project_path / "bible" / "characters.yaml"

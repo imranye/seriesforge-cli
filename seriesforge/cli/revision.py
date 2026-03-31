@@ -16,14 +16,27 @@ async def revision_loop(
     episode: int,
     season: int,
     max_rounds: int = 6,
-    provider: str = "anthropic",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """Run revision loop with Opus dual-persona review."""
     
     project_path = Path.cwd()
+    from seriesforge.core.config import load_config, get_api_key
     config = load_config(project_path)
     state_path = project_path / "state.json"
     state = PipelineState(state_path)
+    
+    # Set default model for Opus review
+    if model is None:
+        if provider == "openrouter":
+            model = "anthropic/claude-3.5-opus"
+        elif provider == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
+    api_key = get_api_key(config, provider)
     
     bible_path = project_path / "bible.md"
     script_path = project_path / f"s{season}e{episode}_script.md"
@@ -49,7 +62,7 @@ async def revision_loop(
             script_text,
             bible_path,
             provider_name=provider,
-            api_key=config.get("anthropic_api_key", ""),
+            api_key=api_key,
         )
         
         # Save review
@@ -113,7 +126,7 @@ Actionable items:
 Output ONLY the revised script, no explanations.
 """
         
-        provider = create_provider(provider, {"api_key": config.get("anthropic_api_key", "")})
+        provider = create_provider(provider, {"api_key": api_key, "model": model})
         messages = [
             ChatMessage(role="system", content="Output only the revised script text."),
             ChatMessage(role="user", content=revision_prompt),
@@ -139,7 +152,8 @@ def revision_cli(
     episode: int = 1,
     season: int = 1,
     max_rounds: int = 6,
-    provider: str = "anthropic",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """CLI for revision loop."""
     asyncio.run(revision_loop(
@@ -147,4 +161,5 @@ def revision_cli(
         season=season,
         max_rounds=max_rounds,
         provider=provider,
+        model=model,
     ))

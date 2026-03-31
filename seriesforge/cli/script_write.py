@@ -18,14 +18,27 @@ async def write_episode_with_retry(
     max_attempts: int = 3,
     score_threshold: float = 6.0,
     apply_adversarial: bool = True,
-    provider: str = "anthropic",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """Write episode script with evaluation retry loop."""
     
     project_path = Path.cwd()
+    from seriesforge.core.config import load_config, get_api_key
     config = load_config(project_path)
     state_path = project_path / "state.json"
     state = PipelineState(state_path)
+    
+    # Set default model for evaluation
+    if model is None:
+        if provider == "openrouter":
+            model = "anthropic/claude-3.5-sonnet"
+        elif provider == "anthropic":
+            model = "claude-3-5-sonnet-20241022"
+        else:
+            model = "gpt-4o"
+    
+    api_key = get_api_key(config, provider)
     
     bible_path = project_path / "bible.md"
     outline_path = project_path / f"s{season}e{episode}_outline.md"
@@ -48,7 +61,7 @@ async def write_episode_with_retry(
             bible_path=bible_path,
             outline_path=outline_path,
             provider_name=provider,
-            api_key=config.get("anthropic_api_key", ""),
+            api_key=api_key,
         )
         
         # Save draft
@@ -59,9 +72,9 @@ async def write_episode_with_retry(
         # Apply adversarial editing if enabled
         if apply_adversarial and attempt < max_attempts:
             typer.echo("\nApplying adversarial editing...")
-            cut_brief = await generate_cut_brief(script_text, target_reduction=10.0, provider_name=provider)
+            cut_brief = await generate_cut_brief(script_text, target_reduction=10.0, provider_name=provider, api_key=api_key)
             typer.echo(f"Found {len(cut_brief.cuts)} cuts to make")
-            script_text = await apply_cuts(script_text, cut_brief, provider_name=provider)
+            script_text = await apply_cuts(script_text, cut_brief, provider_name=provider, api_key=api_key)
             script_path.write_text(script_text)
         
         # Evaluate
@@ -71,7 +84,7 @@ async def write_episode_with_retry(
             bible_path,
             outline_path,
             provider_name=provider,
-            api_key=config.get("anthropic_api_key", ""),
+            api_key=api_key,
         )
         
         # Save evaluation report
@@ -114,7 +127,8 @@ def write_script_cli(
     max_attempts: int = 3,
     score_threshold: float = 6.0,
     no_adversarial: bool = False,
-    provider: str = "anthropic",
+    provider: str = "openrouter",
+    model: str = None,
 ):
     """CLI for writing script with retry loop."""
     
@@ -125,4 +139,5 @@ def write_script_cli(
         score_threshold=score_threshold,
         apply_adversarial=not no_adversarial,
         provider=provider,
+        model=model,
     ))

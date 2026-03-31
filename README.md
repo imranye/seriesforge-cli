@@ -36,10 +36,17 @@ pip install -e .
 Set your API keys in `.env` or as environment variables:
 
 ```bash
-export ANTHROPIC_API_KEY=***  # Required for evaluation
-export OPENAI_API_KEY=***     # Optional, for some stages
+# Option 1: OpenRouter (recommended - one key for all models)
+export OPENROUTER_API_KEY=sk-or-***
+
+# Option 2: Direct provider keys
+export ANTHROPIC_API_KEY=sk-ant-***  # For Claude
+export OPENAI_API_KEY=sk-***         # For GPT
 ```
 
+**OpenRouter models:**
+- `anthropic/claude-3.5-sonnet` (default for evaluation)
+- `anthropic/claude-3.5-opus` (for Opus review loop)
 ## Quick Start
 
 ```bash
@@ -47,20 +54,23 @@ export OPENAI_API_KEY=***     # Optional, for some stages
 seriesforge project init my-show
 cd my-show
 
-# Generate show bible
+# Set your API key (OpenRouter recommended)
+export OPENROUTER_API_KEY=sk-or-...
+
+# Generate show bible (uses GPT-4o by default)
 seriesforge bible generate --concept "A deadpan workplace comedy set inside an AI film studio"
 
 # Generate season arc
 seriesforge arc generate --season 1 --episodes 8
 
 # Generate episode outline
-seriesforge episode outline --episode 1 --season 1
+seriesforge episode outline --episode 1
 
-# Write script with evaluation retry loop (NEW)
-seriesforge script write --episode 1 --max-attempts 3 --threshold 6.0
+# Write the script (uses Claude 3.5 Sonnet by default)
+seriesforge script write --episode 1
 
-# Run revision loop with Opus review (NEW)
-seriesforge revision run --episode 1 --max-rounds 6
+# Run revision loop (uses Claude 3.5 Opus by default)
+seriesforge revision run --episode 1
 
 # Or run the full pipeline
 seriesforge pipeline run --episode 1 --auto
