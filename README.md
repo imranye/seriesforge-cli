@@ -4,6 +4,9 @@ An agentic CLI for AI-native film and production studios.
 
 > From prompt to pilot, entirely from the terminal.
 
+[![GitHub](https://img.shields.io/badge/github-imranye/seriesforge--cli-blue)](https://github.com/imranye/seriesforge-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Installation
 
 ```bash
