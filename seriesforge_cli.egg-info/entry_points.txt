@@ -1,0 +1,2 @@
+[console_scripts]
+seriesforge = seriesforge.main:app
