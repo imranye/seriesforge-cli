@@ -13,56 +13,48 @@ from seriesforge.providers.llm import ChatMessage, create_provider
 @dataclass
 class CutBrief:
     """Brief for what to cut from a script."""
-    cuts: List[Dict[str, str]]  # [{"type": "filler_dialogue", "text": "...", "reason": "..."}]
+    cuts: List[Dict[str, str]]
     estimated_page_reduction: float
     summary: str
 
 
 async def generate_cut_brief(
     script_text: str,
-    target_reduction: float = 10.0,  # Target 10% reduction
-    provider_name: str = "anthropic",
+    target_reduction: float = 10.0,
+    provider_name: str = "openrouter",
     api_key: Optional[str] = None,
 ) -> CutBrief:
-    """Generate adversarial edit brief."""
+    """Generate adversarial edit brief - optimized for speed."""
     
-    provider = create_provider(provider_name, {"api_key": api_key or ""})
+    model = "anthropic/claude-3.5-haiku" if provider_name == "openrouter" else None
     
-    prompt = f"""You are an adversarial TV editor. Your job is to find and recommend cuts.
+    provider = create_provider(provider_name, {"api_key": api_key or "", "model": model})
+    
+    prompt = f"""Adversarial TV editor. Find cuts to tighten script.
 
-SCRIPT:
-{script_text[:40000]}
+SCRIPT (first 3000 chars):
+{script_text[:3000]}
 
-Target: Reduce by {target_reduction}% without losing story beats.
+Target: {target_reduction}% reduction
 
-Find:
-1. Filler dialogue (characters saying things that don't advance plot/reveal character)
-2. Redundant action lines
-3. Over-explained moments
-4. Slow pacing sections
-5. Tell-not-show moments
+Find filler: weak dialogue, redundant action, over-explanation.
 
-Output valid JSON:
+Output JSON only:
 {{
   "cuts": [
-    {{
-      "type": "filler_dialogue|redundant_action|over_explanation|slow_pacing|tell_not_show",
-      "location": "scene description or page estimate",
-      "text": "exact text to cut",
-      "reason": "why this should be cut"
-    }}
+    {{"type": "filler", "location": "...", "text": "...", "reason": "..."}}
   ],
-  "estimated_page_reduction": 2.5,
-  "summary": "brief summary of what was cut and why"
+  "estimated_page_reduction": 0.5,
+  "summary": "..."
 }}
 """
     
     messages = [
-        ChatMessage(role="system", content="You are a JSON API. Output valid JSON only."),
+        ChatMessage(role="system", content="JSON API only."),
         ChatMessage(role="user", content=prompt),
     ]
     
-    response = await provider.chat(messages, temperature=0.3)
+    response = await provider.chat(messages, temperature=0.3, max_tokens=500)
     
     content = response.content.strip()
     if content.startswith("```json"):
@@ -83,56 +75,57 @@ Output valid JSON:
 async def apply_cuts(
     script_text: str,
     cut_brief: CutBrief,
-    provider_name: str = "anthropic",
+    provider_name: str = "openrouter",
     api_key: Optional[str] = None,
 ) -> str:
     """Apply cuts to script and return revised version."""
     
-    provider = create_provider(provider_name, {"api_key": api_key or ""})
+    model = "anthropic/claude-3.5-haiku" if provider_name == "openrouter" else None
     
-    cuts_text = "\n".join([
-        f"- {c['type']}: {c['text'][:100]}... (reason: {c['reason']})"
-        for c in cut_brief.cuts
-    ])
+    provider = create_provider(provider_name, {"api_key": api_key or "", "model": model})
     
-    prompt = f"""You are applying adversarial edits to a TV script.
+    cuts_text = "\n".join([f"- {c['type']}: {c['text'][:50]}..." for c in cut_brief.cuts[:10]])
+    
+    prompt = f"""Apply these cuts to tighten the script:
 
-CUTS TO APPLY:
+CUTS TO MAKE:
 {cuts_text}
 
-ORIGINAL SCRIPT:
-{script_text[:40000]}
+Original script:
+{script_text[:35000]}
 
-Apply all cuts. Remove the specified text entirely. Tighten remaining dialogue where needed.
-Output ONLY the revised script, no explanations.
-"""
+Output ONLY the revised script with cuts applied. Maintain Fountain format."""
     
     messages = [
-        ChatMessage(role="system", content="Output only the revised script text."),
+        ChatMessage(role="system", content="Output Fountain format only."),
         ChatMessage(role="user", content=prompt),
     ]
     
-    response = await provider.chat(messages, temperature=0.3)
+    response = await provider.chat(messages, temperature=0.5, max_tokens=8000)
+    
     return response.content
 
 
-def mechanical_cuts(script_text: str) -> str:
-    """Apply mechanical cuts (regex-based, no LLM)."""
+def mechanical_cuts(script_text: str) -> List[Dict[str, str]]:
+    """Fast mechanical cuts using regex - no LLM needed."""
     
-    # Remove common filler
-    fillers = [
-        r"\b(and so|and then|and just|but then)\b\s+",
-        r"\b(um|uh|like|you know|I mean)\b\s*",
-        r"\s+\(beat\)\s*",
-        r"\s+\(pause\)\s*",
+    cuts = []
+    
+    # Common filler patterns
+    filler_patterns = [
+        (r"\b(I mean|you know|like|sort of|kind of|basically|literally)\b", "filler_words"),
+        (r"\b(um|uh|ah|er|hm)\b", "verbal_hesitations"),
+        (r"^(She/He/They looked at him/her/them\.)", "redundant_action"),
+        (r"\b(nods|smiles|frowns|sighs)\b", "overused_beats"),
     ]
     
-    result = script_text
-    for pattern in fillers:
-        result = re.sub(pattern, " ", result, flags=re.IGNORECASE)
+    for pattern, cut_type in filler_patterns:
+        matches = re.findall(pattern, script_text, re.IGNORECASE)
+        if matches:
+            cuts.append({
+                "type": cut_type,
+                "count": len(matches),
+                "examples": list(set(matches))[:3],
+            })
     
-    # Normalize whitespace
-    result = re.sub(r"\n{3,}", "\n\n", result)
-    result = re.sub(r"\s+", " ", result)
-    
-    return result
+    return cuts

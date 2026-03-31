@@ -47,11 +47,14 @@ async def generate_script_llm(
     # Extract characters with descriptions
     import re
     
-    # Get character section
-    char_section = re.search(r'## Characters\s+(.+?)(?:## |\Z)', bible_content, re.DOTALL)
+    # Get character section - find ## Characters and grab everything until next ## at line start
+    char_match = re.search(r'## Characters\n((?:.|\n)*?)(?=\n## |\Z)', bible_content)
     char_desc = ""
-    if char_section:
-        char_desc = char_section.group(1)[:1500]  # First 1500 chars of character section
+    if char_match:
+        char_desc = char_match.group(1)[:2000]  # First 2000 chars of character section
+    else:
+        # Fallback: just use the whole bible
+        char_desc = bible_content[:1000]
     
     # Extract location names
     loc_section = re.search(r'## Locations\s+(.+?)(?:## |\Z)', bible_content, re.DOTALL)

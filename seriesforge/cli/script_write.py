@@ -39,8 +39,8 @@ async def write_episode_with_retry(
     
     api_key = get_api_key(config, provider)
     
-    bible_path = project_path / "bible.md"
-    outline_path = project_path / f"s{season}e{episode}_outline.md"
+    bible_path = project_path / "bible" / "show_bible.md"
+    outline_path = project_path / f"season_{season}" / "episodes" / f"ep_{episode:02d}" / "outline.md"
     script_path = project_path / f"s{season}e{episode}_script.md"
     eval_path = project_path / "evals" / f"s{season}e{episode}_eval.json"
     

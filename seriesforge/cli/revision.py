@@ -8,7 +8,6 @@ from typing import Optional, List
 from seriesforge.core.config import load_config
 from seriesforge.core.network_review import network_review
 from seriesforge.core.state import PipelineState
-from seriesforge.core.manifests import load_episode_manifest
 from seriesforge.providers.llm import ChatMessage, create_provider
 
 

@@ -19,12 +19,12 @@ from seriesforge.core.manifests import (
 
 
 STAGES = [
-    {"name": "bible", "command": "bible generate", "required_env": ["OPENAI_API_KEY"]},
-    {"name": "arc", "command": "arc generate", "required_env": ["OPENAI_API_KEY"]},
-    {"name": "outline", "command": "episode outline", "required_env": ["OPENAI_API_KEY"]},
-    {"name": "script", "command": "script write", "required_env": ["ANTHROPIC_API_KEY"]},
-    {"name": "revision", "command": "revision run", "required_env": ["ANTHROPIC_API_KEY"]},
-    {"name": "shots", "command": "shots plan", "required_env": ["OPENAI_API_KEY"]},
+    {"name": "bible", "command": "bible generate", "required_env": ["OPENROUTER_API_KEY"]},
+    {"name": "arc", "command": "arc generate", "required_env": ["OPENROUTER_API_KEY"]},
+    {"name": "outline", "command": "episode outline", "required_env": ["OPENROUTER_API_KEY"]},
+    {"name": "script", "command": "script write", "required_env": ["OPENROUTER_API_KEY"]},
+    {"name": "revision", "command": "revision run", "required_env": ["OPENROUTER_API_KEY"]},
+    {"name": "shots", "command": "shots plan", "required_env": ["OPENROUTER_API_KEY"]},
     {"name": "voice", "command": "voice generate", "required_env": []},
     {"name": "video", "command": "video generate", "required_env": []},
     {"name": "edit", "command": "edit assemble", "required_env": []},
@@ -44,6 +44,9 @@ def check_env_vars(required: List[str]) -> bool:
 
 def run_stage(stage: dict, episode: int, season: int, auto: bool) -> bool:
     """Run a single pipeline stage."""
+    import subprocess
+    import sys
+    
     name = stage["name"]
     command = stage["command"]
     
@@ -59,9 +62,11 @@ def run_stage(stage: dict, episode: int, season: int, auto: bool) -> bool:
         raise typer.Exit(code=1)
     
     # Build command
-    cmd_parts = ["seriesforge"]
+    cmd_parts = [sys.executable, "-m", "seriesforge"]
     if " " in command:
         cmd_parts.extend(command.split())
+    else:
+        cmd_parts.append(command)
     cmd_parts.extend([f"--episode", str(episode), f"--season", str(season)])
     
     # Add --auto flag if in auto mode
@@ -70,9 +75,19 @@ def run_stage(stage: dict, episode: int, season: int, auto: bool) -> bool:
     
     typer.echo(f"Running: {' '.join(cmd_parts)}")
     
-    # TODO: Actually run the subcommand
-    # For now, just simulate
-    typer.echo(f"✓ {name} stage complete (simulated)")
+    # Actually run the command
+    result = subprocess.run(cmd_parts, capture_output=True, text=True)
+    
+    if result.stdout:
+        typer.echo(result.stdout)
+    if result.stderr:
+        typer.echo(result.stderr, err=True)
+    
+    if result.returncode != 0:
+        typer.echo(f"✗ {name} stage error: {result.stderr}")
+        return False
+    
+    typer.echo(f"✓ {name} stage complete")
     
     return True
 
